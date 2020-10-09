@@ -5,8 +5,9 @@ const admin = require("firebase-admin");
 const serviceAccount = require("./appsus-tech-test-firebase-adminsdk-cjtqy-c07c746a02.json");
 const express = require("express");
 const songsModule = require("./api/v1/songsModule");
+const albumsModule = require("./api/v1/albumsModule");
 const app = express();
-const port = 3000;
+const port = 5000;
 
 app.use(express.json());
 admin.initializeApp({
@@ -14,20 +15,17 @@ admin.initializeApp({
 });
 const db = admin.firestore();
 
-const firebaseConfig = {
-    apiKey: process.env.APPSUS_TECH_TEST_WEB_API_KEY,
-    authDomain: "PROJECT_ID.firebaseapp.com",
-    databaseURL: "https://PROJECT_ID.firebaseio.com",
-    projectId: process.env.APPSUS_TECH_TEST_PROJECT_ID,
-    storageBucket: "PROJECT_ID.appspot.com",
-    messagingSenderId: "SENDER_ID",
-    appId: process.env.APPSUS_TECH_TEST_PROJECT_ID,
-    measurementId: "G-MEASUREMENT_ID",
-};
-
-app.get("/", (req, res) => {
-    res.send("Hello World!")
-})
+app.get("/api/v1/songs/search", async (req, res) => {
+    const data = req.query;
+    const fetchedSong = await songsModule.searchSong(data, db);
+    if (fetchedSong) {
+        res.status(200).json({
+            songs: fetchedSong,
+        });
+    } else {
+        res.sendStatus(500);
+    }
+});
 
 app.post("/api/v1/songs/create", async (req, res) => {
     const data = req.body.data;
@@ -43,23 +41,72 @@ app.post("/api/v1/songs/create", async (req, res) => {
 
 app.get("/api/v1/songs", async (req, res) => {
     const data = req.query;
-    const firestoreResponse = await songsModule.indexSongs(data, db);
-    if (firestoreResponse) {
-        var songs = [];
-        firestoreResponse.forEach(collection => {
+    const {fetchedAlbum, fetchedSongs} = await songsModule.indexSongs(data, db);
+    if (fetchedAlbum && fetchedSongs) {
+        let songs = []
+        fetchedSongs.forEach(collection => {
             songs.push(collection.data());
         });
         res.status(200).json({
-            songs: songs
+            songs: songs,
+            album: fetchedAlbum.data()
         });
     } else {
         res.sendStatus(500);
     }
 });
 
-app.get("/api/v1/song", async (req, res) => {
+app.post("/api/v1/songs/update", async (req, res) => {
+    const data = req.body.data;
+    const firestoreResponse = await songsModule.updateSong(data, db);
+    if (firestoreResponse) {
+        res.sendStatus(200);
+    } else {
+        res.sendStatus(500);
+    }
+});
+
+app.post("/api/v1/songs/delete", async (req, res) => {
+    const data = req.body.data;
+    const firestoreResponse = await songsModule.deleteSong(data, db);
+    if (firestoreResponse) {
+        res.sendStatus(200);
+    } else {
+        res.sendStatus(500);
+    }
+});
+
+app.post("/api/v1/albums/create", async (req, res) => {
+    const data = req.body.data;
+    const firestoreResponse = await albumsModule.createAlbum(data, db);
+    if (firestoreResponse) {
+        res.status(200).json({
+            song: firestoreResponse.data()
+        });
+    } else {
+        res.sendStatus(500);
+    }
+});
+
+app.get("/api/v1/albums", async (req, res) => {
     const data = req.query;
-    const firestoreResponse = await songsModule.showSong(data, db);
+    const firestoreResponse = await albumsModule.indexAlbums(data, db);
+    if (firestoreResponse) {
+        var albums = [];
+        firestoreResponse.docs.forEach(document => {
+            albums.push(document.data());
+        });
+        res.status(200).json({
+            albums: albums
+        });
+    } else {
+        res.sendStatus(500);
+    }
+});
+
+app.get("/api/v1/album", async (req, res) => {
+    const data = req.query;
+    const firestoreResponse = await albumsModule.showAlbum(data, db);
     if (firestoreResponse.exists) {
         res.status(200).json({
             song: firestoreResponse.data()
@@ -69,33 +116,25 @@ app.get("/api/v1/song", async (req, res) => {
     }
 });
 
-// app.post("/api/v1/songs/update", (req, res) => {
-//     const data = req.body.data;
-//     const user = data.user;
-//     const album = data.album;
-//     const song = data.song;
-//     db.collection("artists").doc(user.id)
-//         .collection("albums").doc(album.id)
-//         .collection("songs").doc(song.id).update(song);
-// });
+app.post("/api/v1/albums/update", async (req, res) => {
+    const data = req.body.data;
+    const firestoreResponse = await albumsModule.updateAlbum(data, db);
+    if (firestoreResponse) {
+        res.sendStatus(200);
+    } else {
+        res.sendStatus(500);
+    }
+});
 
-// app.post("/api/v1/songs/update", (req, res) => {
-//     const data = req.body.data;
-//     const user = data.user;
-//     const album = data.album;
-//     const song = data.song;
-//     db.collection("artists").doc(user.id)
-//         .collection("albums").doc(album.id)
-//         .collection("songs").doc(song.id).delete();
-// });
-
-// app.get("/api/v1/albums/index", async (req, res) => {
-//     const albums = db.collection("artists").doc("tame-impala");
-//     const songs = await albums.listCollections();
-//     songs.forEach(collection => {
-//         console.log('Found subcollection with id:', collection.id);
-//     });
-// });
+app.post("/api/v1/albums/delete", async (req, res) => {
+    const data = req.body.data;
+    const firestoreResponse = await albumsModule.deleteAlbum(data, db);
+    if (firestoreResponse) {
+        res.sendStatus(200);
+    } else {
+        res.sendStatus(500);
+    }
+});
 
 app.listen(port, () => {
     console.log(`App listening at http://localhost:${port}`)
